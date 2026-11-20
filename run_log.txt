@@ -1,0 +1,137 @@
+### 0. Broken batch (missing Torque column) -> must stop safely
+============================================================
+TASK A - Prepare and validate new data
+============================================================
+Loaded 500 rows x 8 columns from data/broken.csv
+ERROR: Missing required columns: ['Torque [Nm]']
+Data validation failed; see reports/validation_failed_20261120_090119.json. Nothing was trained or changed.
+(exit code 1)
+
+### 1. Small batch (600 rows) -> expect RETAIN_CHAMPION
+Wrote 600 rows to data/small_batch.csv; failure rate = 4.167%
+============================================================
+TASK A - Prepare and validate new data
+============================================================
+Loaded 600 rows x 9 columns from data/small_batch.csv
+Required columns present: ['Type', 'Air temperature [K]', 'Process temperature [K]', 'Rotational speed [rpm]', 'Torque [Nm]', 'Tool wear [min]', 'Machine failure']
+Missing values per required column: {"Type": 0, "Air temperature [K]": 0, "Process temperature [K]": 0, "Rotational speed [rpm]": 0, "Torque [Nm]": 0, "Tool wear [min]": 0, "Machine failure": 0}
+Duplicates: full-row=0, duplicate Product ID=0, Product ID already in training data=0
+Dataset size after cleaning: 600 rows
+Target distribution:
+  0: 575 (95.83%)
+  1: 25 (4.17%)
+Validation: PASSED
+
+============================================================
+TASK B - Evaluate the existing champion on the new batch
+============================================================
+Champion v1 (RandomForest) on 600 new rows:
+  accuracy   0.9850
+  precision  0.8636
+  recall     0.7600
+  f1         0.8085
+  roc_auc    0.9776
+  confusion  {'tn': 572, 'fp': 3, 'fn': 6, 'tp': 19}
+
+============================================================
+TASK C - Retrain a candidate model
+============================================================
+Existing training rows: 8000 | new-batch rows used for training: 420 | combined: 8420 (failures: 468)
+Candidate saved separately: models/candidates/candidate_20261120_090120.joblib  (champion file untouched)
+
+============================================================
+TASK D - Quality gate
+============================================================
+Gate set: 2180 rows (119 failures) = original hold-out (2000) + new-batch hold-out (180)
+metric       champion  candidate
+accuracy       0.9761     0.9752
+precision      0.7769     0.7731
+recall         0.7899     0.7731
+f1             0.7833     0.7731
+roc_auc        0.9803     0.9806
+  check f1_gain >= 0.01: value=-0.0102 -> FAIL
+  check recall_change >= -0.02: value=-0.0168 -> PASS
+
+DECISION: RETAIN_CHAMPION
+Champion NOT modified. Candidate kept on disk for audit only.
+
+Saved report: reports/evaluation_report_20261120_090120.json
+Appended decision to: models/decision_log.jsonl
+MLflow not installed - skipped tracking (report + decision log still written).
+
+### 2. Promotion attempt on the rejected candidate -> must be refused
+Gate decision was RETAIN_CHAMPION; refusing to promote (use --force with a --reason to override).
+(exit code 1)
+
+### 3. Drifted batch (3000 rows) -> expect ELIGIBLE_FOR_PROMOTION
+Wrote 3000 rows to data/incoming_batch.csv; failure rate = 11.467%
+============================================================
+TASK A - Prepare and validate new data
+============================================================
+Loaded 3000 rows x 9 columns from data/incoming_batch.csv
+Required columns present: ['Type', 'Air temperature [K]', 'Process temperature [K]', 'Rotational speed [rpm]', 'Torque [Nm]', 'Tool wear [min]', 'Machine failure']
+Missing values per required column: {"Type": 0, "Air temperature [K]": 0, "Process temperature [K]": 0, "Rotational speed [rpm]": 0, "Torque [Nm]": 0, "Tool wear [min]": 0, "Machine failure": 0}
+Duplicates: full-row=0, duplicate Product ID=0, Product ID already in training data=0
+Dataset size after cleaning: 3000 rows
+Target distribution:
+  0: 2656 (88.53%)
+  1: 344 (11.47%)
+Validation: PASSED
+
+============================================================
+TASK B - Evaluate the existing champion on the new batch
+============================================================
+Champion v1 (RandomForest) on 3000 new rows:
+  accuracy   0.9473
+  precision  0.8577
+  recall     0.6483
+  f1         0.7384
+  roc_auc    0.9564
+  confusion  {'tn': 2619, 'fp': 37, 'fn': 121, 'tp': 223}
+
+============================================================
+TASK C - Retrain a candidate model
+============================================================
+Existing training rows: 8000 | new-batch rows used for training: 2100 | combined: 10100 (failures: 691)
+Candidate saved separately: models/candidates/candidate_20261120_090123.joblib  (champion file untouched)
+
+============================================================
+TASK D - Quality gate
+============================================================
+Gate set: 2900 rows (215 failures) = original hold-out (2000) + new-batch hold-out (900)
+metric       champion  candidate
+accuracy       0.9686     0.9779
+precision      0.8263     0.8578
+recall         0.7302     0.8419
+f1             0.7753     0.8498
+roc_auc        0.9755     0.9812
+  check f1_gain >= 0.01: value=0.0745 -> PASS
+  check recall_change >= -0.02: value=0.1116 -> PASS
+
+DECISION: ELIGIBLE_FOR_PROMOTION
+Champion NOT modified. To promote, run: python promote.py --candidate models/candidates/candidate_20261120_090123.joblib
+
+Saved report: reports/evaluation_report_20261120_090123.json
+Appended decision to: models/decision_log.jsonl
+MLflow not installed - skipped tracking (report + decision log still written).
+
+### 4. Explicit human-approved promotion
+Promoted candidate_20261120_090123.joblib: champion v1 -> v2. Old champion archived at models/archive/champion_v1.joblib.
+
+### 5. Audit trail
+{
+  "champion_version": 2,
+  "path": "models/maintenance_bundle.joblib",
+  "sha256": "91652acbcd412e4c4add43b96f9efd309aa1f453ab37de2f576c6e96d9d9add6",
+  "history": [
+    {
+      "version": 1,
+      "archived_as": "models/archive/champion_v1.joblib",
+      "retired_utc": "2026-11-20T09:01:24.935097+00:00"
+    }
+  ],
+  "promoted_utc": "2026-11-20T09:01:24.935097+00:00"
+}
+{"run_id": "20261120_090120", "timestamp_utc": "2026-11-20T09:01:20.472268+00:00", "decision": "RETAIN_CHAMPION", "champion_version": 1, "candidate": "models/candidates/candidate_20261120_090120.joblib", "f1_champion": 0.7833333333333333, "f1_candidate": 0.773109243697479, "recall_champion": 0.7899159663865546, "recall_candidate": 0.773109243697479, "promoted": false}
+{"run_id": "20261120_090123", "timestamp_utc": "2026-11-20T09:01:23.648351+00:00", "decision": "ELIGIBLE_FOR_PROMOTION", "champion_version": 1, "candidate": "models/candidates/candidate_20261120_090123.joblib", "f1_champion": 0.7753086419753087, "f1_candidate": 0.8497652582159625, "recall_champion": 0.7302325581395349, "recall_candidate": 0.8418604651162791, "promoted": false}
+{"timestamp_utc": "2026-11-20T09:01:24.935097+00:00", "event": "PROMOTED", "from_version": 1, "to_version": 2, "candidate": "models/candidates/candidate_20261120_090123.joblib", "gate_decision": "ELIGIBLE_FOR_PROMOTION", "forced": false, "reason": "Gate passed; reviewed evaluation report"}
